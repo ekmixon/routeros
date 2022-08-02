@@ -39,14 +39,12 @@ with open(args.csv) as csv_file:
 		try:
 			response = urlopen(req, timeout=3)
 			json = response.read().decode("utf-8")
-		except HTTPError as e:
-			error = error + 1
-		except URLError as e:
+		except (HTTPError, URLError) as e:
 			error = error + 1
 		except:
 			error = error + 1
 		else:
-			
+
 			result = info_regex.match(json)
 			if result != None:
 				print(row[0], end=",")

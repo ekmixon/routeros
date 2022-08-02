@@ -10,7 +10,7 @@ if len(sys.argv) > 1:
 for filename in os.listdir(target):
 
     bv = binja.BinaryViewType.get_view_of_file(target + filename)
-    if bv == None:
+    if bv is None:
         continue;
 
     addHandler_addr = 0
@@ -25,9 +25,10 @@ for filename in os.listdir(target):
     if addHandler_addr == 0:
         continue
 
-    addHandler_funcs = set()
-    for xref in bv.get_code_refs(addHandler_addr):
-        addHandler_funcs.add(bv.get_functions_containing(xref.address)[0])
+    addHandler_funcs = {
+        bv.get_functions_containing(xref.address)[0]
+        for xref in bv.get_code_refs(addHandler_addr)
+    }
 
     sys.stdout.write(filename)
 
@@ -37,7 +38,10 @@ for filename in os.listdir(target):
             for instr in block:
                 if instr.operation == binja.MediumLevelILOperation.MLIL_STORE and instr.src.operation == binja.MediumLevelILOperation.MLIL_CONST:
                     last_stored_constant = instr.src.constant
-                if instr.operation == binja.MediumLevelILOperation.MLIL_CALL or instr.operation == binja.MediumLevelILOperation.MLIL_CALL_UNTYPED:
+                if instr.operation in [
+                    binja.MediumLevelILOperation.MLIL_CALL,
+                    binja.MediumLevelILOperation.MLIL_CALL_UNTYPED,
+                ]:
                     try:
                         if instr.dest.constant == addHandler_addr:
                             try:

